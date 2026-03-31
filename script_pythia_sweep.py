@@ -253,7 +253,8 @@ def load_or_generate_prompts(model, model_consts, model_name, data_dir):
             if op1 > 5 and op2 > 5 and int(a) > 2:
                 new_pa.append((p, a))
         if len(new_pa) < wanted_size:
-            new_pa = new_pa + random.sample(pa, k=max(0, wanted_size - len(new_pa)))
+            shortfall = min(len(pa), max(0, wanted_size - len(new_pa)))
+            new_pa = new_pa + random.sample(pa, k=shortfall)
         filtered.append(new_pa)
     correct_pa = [_maximize_unique_answers(pa, k=wanted_size) for pa in filtered]
     return large_pa, correct_pa
@@ -270,7 +271,8 @@ def run_attribution_patching(model, model_name, operator_idx, correct_pa, data_d
 
     set_deterministic(SEED)
     pa = correct_pa[operator_idx]
-    corrupt_pa = random.sample(sum(correct_pa, []), k=len(pa))
+    all_pa = sum(correct_pa, [])
+    corrupt_pa = random.sample(all_pa, k=min(len(pa), len(all_pa)))
 
     log.info(f"  Running attribution patching for {OPERATOR_NAMES[operator_idx]}...")
     scores = node_attribution_patching(

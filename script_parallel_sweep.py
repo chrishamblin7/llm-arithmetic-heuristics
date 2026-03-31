@@ -168,11 +168,17 @@ def main():
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--poll-interval", type=int, default=30, help="Progress poll interval in seconds")
     parser.add_argument("--skip-predownload", action="store_true", help="Skip model pre-download (use if models already cached)")
+    parser.add_argument("--exclude-sizes", type=str, default="", help="Comma-separated model sizes to exclude (e.g. '6.9b')")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     model_list = build_sorted_queue(args.experiment)
+    if args.exclude_sizes:
+        excluded = [s.strip() for s in args.exclude_sizes.split(",")]
+        before = len(model_list)
+        model_list = [m for m in model_list if not any(f"pythia-{ex}" in m for ex in excluded)]
+        print(f"[Launcher] Excluded sizes {excluded}: {before} -> {len(model_list)} models")
     queue_path = os.path.join(args.output_dir, "work_queue.json")
     lock_path = queue_path + ".lock"
 

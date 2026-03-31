@@ -273,12 +273,12 @@ def classify_heuristic_neurons(heuristic_neurons: List[Tuple[int, int]],
             # operand range
             for range_size in OPERAND_range_SIZES_BY_OPERATOR[OPERATORS[heuristic_analysis_data.operator_idx]]:
                 for range_start in range(0, max_op, range_size):
-                    range = (range_start, range_start + range_size)
-                    range_score = is_operand_range_neuron(layer, neuron, range, heuristic_analysis_data, op_index)
+                    op_range = (range_start, range_start + range_size)
+                    range_score = is_operand_range_neuron(layer, neuron, op_range, heuristic_analysis_data, op_index)
                     if use_bottom_topk:
-                        range_score_bottom = is_operand_range_neuron(layer, neuron, range, bottom_heuristic_data, op_index)
+                        range_score_bottom = is_operand_range_neuron(layer, neuron, op_range, bottom_heuristic_data, op_index)
                         range_score = max(range_score, range_score_bottom)
-                    insert(heuristic_matches_dict, f"op{op_index}_range_{range[0]}_{range[1]}", (layer, neuron, range_score))
+                    insert(heuristic_matches_dict, f"op{op_index}_range_{op_range[0]}_{op_range[1]}", (layer, neuron, range_score))
 
         # Both operands m mod n
         for n in [2, 3, 4, 5, 6, 7, 8, 9, 10]:
@@ -292,12 +292,12 @@ def classify_heuristic_neurons(heuristic_neurons: List[Tuple[int, int]],
         # Both operands range
         for range_size in OPERAND_range_SIZES_BY_OPERATOR[OPERATORS[heuristic_analysis_data.operator_idx]]:
             for range_start in range(0, max_op, range_size):
-                range = (range_start, range_start + range_size)
-                range_score = is_both_operands_range_neuron(layer, neuron, range, heuristic_analysis_data)
+                op_range = (range_start, range_start + range_size)
+                range_score = is_both_operands_range_neuron(layer, neuron, op_range, heuristic_analysis_data)
                 if use_bottom_topk:
-                    range_score_bottom = is_both_operands_range_neuron(layer, neuron, range, bottom_heuristic_data)
+                    range_score_bottom = is_both_operands_range_neuron(layer, neuron, op_range, bottom_heuristic_data)
                     range_score = max(range_score, range_score_bottom)
-                insert(heuristic_matches_dict, f"both_operands_range_{range[0]}_{range[1]}", (layer, neuron, range_score))
+                insert(heuristic_matches_dict, f"both_operands_range_{op_range[0]}_{op_range[1]}", (layer, neuron, range_score))
 
         # result m mod n
         if not (heuristic_analysis_data.operator_idx == 3):
@@ -320,9 +320,9 @@ def classify_heuristic_neurons(heuristic_neurons: List[Tuple[int, int]],
         # result range
         for range_size in RESULT_range_SIZES_BY_OPERATOR[OPERATORS[heuristic_analysis_data.operator_idx]]:
             for range_start in range(0, max_result, max(range_size // 3, 10)):
-                range = (range_start, range_start + range_size)
-                range_score = is_result_range_neuron(layer, neuron, range, heuristic_analysis_data)
-                insert(heuristic_matches_dict, f"result_range_{range[0]}_{range[1]}", (layer, neuron, range_score))
+                op_range = (range_start, range_start + range_size)
+                range_score = is_result_range_neuron(layer, neuron, op_range, heuristic_analysis_data)
+                insert(heuristic_matches_dict, f"result_range_{op_range[0]}_{op_range[1]}", (layer, neuron, range_score))
 
         # Same operand neuron
         same_operand_score = is_same_operand_neuron(layer, neuron, heuristic_analysis_data)
