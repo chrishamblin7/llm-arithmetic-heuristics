@@ -43,6 +43,8 @@ def load_model(model_name, model_path, device, extra_hooks=True):
             fold_ln=True, center_unembed=True, center_writing_weights=True,
             device=device,
         )
+        del hf_model
+        import gc; gc.collect()
     elif 'gptj' in model_name:
         model = lens.HookedTransformer.from_pretrained("EleutherAI/gpt-j-6b", fold_ln=True, center_unembed=True, center_writing_weights=True, device=device)
     elif 'llama3' in model_name:
