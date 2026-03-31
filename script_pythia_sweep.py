@@ -513,8 +513,19 @@ def analyze_single_model(
     set_deterministic(SEED)
     torch.set_grad_enabled(False)
 
-    log.info(f"  Loading model {model_name}...")
-    model = load_model(model_name, model_path, device, extra_hooks=False)
+    # Serialize model loading across workers to avoid OOM from concurrent
+    # TransformerLens weight processing (~100-180GB CPU RAM per 6.9B model)
+    load_lock_path = os.path.join(output_dir, "model_load.lock")
+    log.info(f"  Waiting for model load lock...")
+    from filelock import FileLock
+    load_lock = FileLock(load_lock_path, timeout=1800)
+    load_lock.acquire()
+    try:
+        log.info(f"  Loading model {model_name}...")
+        model = load_model(model_name, model_path, device, extra_hooks=False)
+    finally:
+        load_lock.release()
+        log.info(f"  Model loaded, lock released.")
 
     first_layer = detect_first_heuristics_layer(model, model_name, model_path, output_dir)
     model_consts = get_model_consts(model_name, first_heuristics_layer=first_layer)
