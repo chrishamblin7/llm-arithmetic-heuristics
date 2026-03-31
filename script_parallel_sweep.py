@@ -167,6 +167,7 @@ def main():
     parser.add_argument("--output-dir", default="./results")
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--poll-interval", type=int, default=30, help="Progress poll interval in seconds")
+    parser.add_argument("--skip-predownload", action="store_true", help="Skip model pre-download (use if models already cached)")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -201,9 +202,11 @@ def main():
     if remaining == 0:
         print("[Launcher] All models already complete, skipping to aggregation")
     else:
-        # Pre-download all model weights sequentially to avoid I/O contention
-        models_to_download = [e["model"] for e in queue if e["status"] == "pending"]
-        predownload_models(models_to_download)
+        if not args.skip_predownload:
+            models_to_download = [e["model"] for e in queue if e["status"] == "pending"]
+            predownload_models(models_to_download)
+        else:
+            print("[Launcher] Skipping pre-download (--skip-predownload)")
         # Spawn worker processes with staggered starts
         import multiprocessing
         workers = []
