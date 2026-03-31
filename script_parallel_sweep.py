@@ -177,9 +177,10 @@ def main():
     if remaining == 0:
         print("[Launcher] All models already complete, skipping to aggregation")
     else:
-        # Spawn worker processes
+        # Spawn worker processes with staggered starts to avoid disk I/O contention
         import multiprocessing
         workers = []
+        stagger_delay = 30  # seconds between worker starts
         for i in range(min(args.num_gpus, remaining)):
             p = multiprocessing.Process(
                 target=worker_loop,
@@ -190,6 +191,8 @@ def main():
             p.start()
             workers.append(p)
             print(f"[Launcher] Started worker {i} -> GPU {i} (pid {p.pid})")
+            if i < min(args.num_gpus, remaining) - 1:
+                time.sleep(stagger_delay)
 
         # Monitor loop
         start_time = time.time()
