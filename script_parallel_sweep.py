@@ -21,6 +21,30 @@ from filelock import FileLock
 from script_pythia_sweep import build_model_list, estimate_params, aggregate_results
 
 
+def predownload_models(model_list: list):
+    """Download all unique model weights sequentially before workers start.
+
+    Uses snapshot_download to cache weights without loading into memory,
+    avoiding the disk I/O storm when 8 workers start simultaneously.
+    """
+    from huggingface_hub import snapshot_download
+    seen_revisions = set()
+    for model_name in model_list:
+        name, step = model_name.split("-step")
+        hf_name = f"EleutherAI/{name}"
+        revision = f"step{step}"
+        cache_key = (hf_name, revision)
+        if cache_key in seen_revisions:
+            continue
+        seen_revisions.add(cache_key)
+        print(f"[Pre-download] {hf_name} @ {revision}...")
+        try:
+            snapshot_download(hf_name, revision=revision)
+        except Exception as e:
+            print(f"[Pre-download] Warning: {hf_name} @ {revision} failed: {e}")
+    print(f"[Pre-download] Done. {len(seen_revisions)} unique checkpoints cached.")
+
+
 def build_sorted_queue(experiment: str) -> list:
     """Build model list sorted largest-first (LPT scheduling)."""
     models = build_model_list(experiment)
@@ -177,10 +201,13 @@ def main():
     if remaining == 0:
         print("[Launcher] All models already complete, skipping to aggregation")
     else:
-        # Spawn worker processes with staggered starts to avoid disk I/O contention
+        # Pre-download all model weights sequentially to avoid I/O contention
+        models_to_download = [e["model"] for e in queue if e["status"] == "pending"]
+        predownload_models(models_to_download)
+        # Spawn worker processes with staggered starts
         import multiprocessing
         workers = []
-        stagger_delay = 30  # seconds between worker starts
+        stagger_delay = 10  # seconds between starts (models already cached)
         for i in range(min(args.num_gpus, remaining)):
             p = multiprocessing.Process(
                 target=worker_loop,
