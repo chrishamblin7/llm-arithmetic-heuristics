@@ -335,7 +335,8 @@ def get_neuron_importance_scores(model: lens.HookedTransformer,
                                  reduce_type: str = "mean+std", 
                                  operator_idx: int = 0,
                                  pos: int = -1,
-                                 is_attn: bool = False):
+                                 is_attn: bool = False,
+                                 data_dir: str = None):
     """
     Get a measure of importance of each neuron in the model based on the neuron indirect effect attribution scores.
 
@@ -346,6 +347,7 @@ def get_neuron_importance_scores(model: lens.HookedTransformer,
         operator_idx (int): The index of the operator to get the neuron scores for.
         pos (int): The position to get the neuron scores for. Default is -1.
         is_attn (bool): If true, get the neuron scores for the attention heads, prior to multiplication with W_O. Used to check the KV hypothesis for attention heads.
+        data_dir (str): Directory containing attribution score files. Defaults to ./data/{model_name}.
     """
     def ranking_func(attribution_scores, pos):
         if reduce_type == "mean":
@@ -359,7 +361,10 @@ def get_neuron_importance_scores(model: lens.HookedTransformer,
         return attribution_scores[:, pos, head].nan_to_num(0).mean(dim=0) + attribution_scores[:, pos, head].nan_to_num(0).std(dim=0)
         
     operator_names = ['addition', 'subtraction', 'multiplication', 'division']
-    neuron_attribution_scores = torch.load(f"./data/{model_name}/{operator_names[operator_idx]}_{'attn_' if is_attn else ''}node_attribution_scores.pt")
+    if data_dir is None:
+        data_dir = f"./data/{model_name}"
+    scores_filename = f"{operator_names[operator_idx]}_{'attn_' if is_attn else ''}node_attribution_scores.pt"
+    neuron_attribution_scores = torch.load(os.path.join(data_dir, scores_filename))
     if is_attn:
         neurons_scores = {(layer, head): head_ranking_func(neuron_attribution_scores[f'blocks.{layer}.attn.hook_z'], -1, head) for layer in range(0, model.cfg.n_layers) for head in range(0, model.cfg.n_heads)}
     else:

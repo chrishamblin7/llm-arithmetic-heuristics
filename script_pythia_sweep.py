@@ -317,6 +317,7 @@ def run_heuristic_classification(
 
     neuron_importance_scores = get_neuron_importance_scores(
         model, model_name, operator_idx=operator_idx, pos=-1,
+        data_dir=data_dir,
     )
     heuristic_neurons = []
     for layer in range(first_heuristics_layer, model.cfg.n_layers):
@@ -453,6 +454,7 @@ def run_prompt_knockout(
     for idx, limit in enumerate(neuron_hard_limits):
         neuron_scores = get_neuron_importance_scores(
             model, model_name, operator_idx=operator_idx, pos=-1,
+            data_dir=data_dir,
         )
         all_top_neurons = []
         for layer in range(model_consts.first_heuristics_layer, model.cfg.n_layers):
