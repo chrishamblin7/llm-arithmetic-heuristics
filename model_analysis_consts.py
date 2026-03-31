@@ -11,3 +11,16 @@ PYTHIA_6_9B_CONSTS = ModelAnalysisConsts(max_single_token=530, first_heuristics_
 LLAMA3_70B_CONSTS = ModelAnalysisConsts(max_single_token=999, first_heuristics_layer=39, topk_neurons_per_layer=400, mlp_activations_also_negative=True)
 LLAMA3_8B_CONSTS = ModelAnalysisConsts(max_single_token=999, first_heuristics_layer=16, topk_neurons_per_layer=200, mlp_activations_also_negative=True)
 GPTJ_CONSTS = ModelAnalysisConsts(max_single_token=520, first_heuristics_layer=17, topk_neurons_per_layer=200, mlp_activations_also_negative=False)
+
+
+def make_pythia_consts(n_layers: int, d_mlp: int, first_heuristics_layer: int = None) -> ModelAnalysisConsts:
+    """Create ModelAnalysisConsts for any Pythia model given its architecture dims."""
+    if first_heuristics_layer is None:
+        first_heuristics_layer = n_layers // 2
+    topk = max(50, int(d_mlp * 0.015))
+    return ModelAnalysisConsts(
+        max_single_token=520,
+        first_heuristics_layer=first_heuristics_layer,
+        topk_neurons_per_layer=topk,
+        mlp_activations_also_negative=False,
+    )

@@ -6,7 +6,7 @@ import pickle
 import torch
 import os
 
-from model_analysis_consts import GPTJ_CONSTS, LLAMA3_70B_CONSTS, LLAMA3_8B_CONSTS, PYTHIA_6_9B_CONSTS
+from model_analysis_consts import GPTJ_CONSTS, LLAMA3_70B_CONSTS, LLAMA3_8B_CONSTS, PYTHIA_6_9B_CONSTS, make_pythia_consts
 from collections import defaultdict
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -34,7 +34,15 @@ class Metric(object):
 def load_model(model_name, model_path, device, extra_hooks=True):
     if 'pythia' in model_name:
         name, step = model_name.split('-step')
-        model = lens.HookedTransformer.from_pretrained(model_name=name, hf_model=GPTNeoXForCausalLM.from_pretrained(f"EleutherAI/{name}", revision=f"step{step}", cache_dir=model_path), fold_ln=True, center_unembed=True, center_writing_weights=True, device=device)
+        hf_name = f"EleutherAI/{name}"
+        hf_model = GPTNeoXForCausalLM.from_pretrained(
+            hf_name, revision=f"step{step}", cache_dir=model_path
+        )
+        model = lens.HookedTransformer.from_pretrained(
+            model_name=name, hf_model=hf_model,
+            fold_ln=True, center_unembed=True, center_writing_weights=True,
+            device=device,
+        )
     elif 'gptj' in model_name:
         model = lens.HookedTransformer.from_pretrained("EleutherAI/gpt-j-6b", fold_ln=True, center_unembed=True, center_writing_weights=True, device=device)
     elif 'llama3' in model_name:
@@ -56,12 +64,33 @@ def load_model(model_name, model_path, device, extra_hooks=True):
     return model
 
 
-def get_model_consts(model_name):
+PYTHIA_ARCH = {
+    "70m":  {"n_layers": 6,  "d_mlp": 2048},
+    "160m": {"n_layers": 12, "d_mlp": 3072},
+    "410m": {"n_layers": 24, "d_mlp": 4096},
+    "1b":   {"n_layers": 16, "d_mlp": 8192},
+    "1.4b": {"n_layers": 24, "d_mlp": 8192},
+    "2.8b": {"n_layers": 32, "d_mlp": 10240},
+    "6.9b": {"n_layers": 32, "d_mlp": 16384},
+    "12b":  {"n_layers": 36, "d_mlp": 20480},
+}
+
+
+def get_model_consts(model_name, first_heuristics_layer=None):
     """
     Return a ModelAnalysisConsts instance for a given model name.
+    Supports arbitrary Pythia sizes via the factory function.
     """
-    if 'pythia' in model_name and '6.9' in model_name:
-        return PYTHIA_6_9B_CONSTS
+    if 'pythia' in model_name:
+        if '6.9' in model_name and first_heuristics_layer is None:
+            return PYTHIA_6_9B_CONSTS
+        for size_key, arch in PYTHIA_ARCH.items():
+            if size_key in model_name:
+                return make_pythia_consts(
+                    arch["n_layers"], arch["d_mlp"],
+                    first_heuristics_layer=first_heuristics_layer,
+                )
+        raise ValueError(f"Unknown Pythia size in '{model_name}'")
     elif 'llama3-8b' in model_name:
         return LLAMA3_8B_CONSTS
     elif 'llama3-70b' in model_name:

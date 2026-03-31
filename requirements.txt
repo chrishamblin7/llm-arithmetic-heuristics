@@ -1,0 +1,13 @@
+torch
+transformer_lens
+transformers
+plotly
+kaleido
+scikit-learn
+umap-learn
+einops
+jaxtyping
+fancy_einsum
+tqdm
+numpy
+matplotlib
