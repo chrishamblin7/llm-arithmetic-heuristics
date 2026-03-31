@@ -600,35 +600,53 @@ def analyze_single_model(
     return result
 
 
-def run_sweep(experiment: str, output_dir: str, model_path: str, device: str):
-    """Run the full sweep across models."""
+def build_model_list(experiment: str) -> list:
+    """Build the deduplicated model list for the requested experiment."""
     if experiment == "checkpoint":
-        model_list = CHECKPOINT_SWEEP_MODELS
+        return list(CHECKPOINT_SWEEP_MODELS)
     elif experiment == "size":
-        model_list = SIZE_SWEEP_MODELS
+        return list(SIZE_SWEEP_MODELS)
     elif experiment == "both":
-        model_list = CHECKPOINT_SWEEP_MODELS + [
+        return CHECKPOINT_SWEEP_MODELS + [
             m for m in SIZE_SWEEP_MODELS if m not in CHECKPOINT_SWEEP_MODELS
         ]
     else:
         raise ValueError(f"Unknown experiment type: {experiment}")
 
-    log.info(f"Sweep: {experiment}, {len(model_list)} models, output -> {output_dir}")
-    os.makedirs(output_dir, exist_ok=True)
 
+def aggregate_results(output_dir: str, model_list: list):
+    """Merge per-model summary JSONs into a single aggregated file."""
     all_results = []
     for model_name in model_list:
-        try:
-            result = analyze_single_model(model_name, model_path, output_dir, device)
-            all_results.append(asdict(result))
-        except Exception as exc:
-            log.error(f"Failed on {model_name}: {exc}", exc_info=True)
-            all_results.append({"model_name": model_name, "error": str(exc)})
+        summary_path = os.path.join(output_dir, "summaries", f"{model_name}.json")
+        if os.path.exists(summary_path):
+            with open(summary_path) as f:
+                all_results.append(json.load(f))
+        else:
+            all_results.append({"model_name": model_name, "error": "summary not found"})
 
     agg_path = os.path.join(output_dir, "aggregated_results.json")
     with open(agg_path, "w") as f:
         json.dump(all_results, f, indent=2)
-    log.info(f"Aggregated results saved to {agg_path}")
+    log.info(f"Aggregated {len(all_results)} results -> {agg_path}")
+    return agg_path
+
+
+def run_sweep(experiment: str, output_dir: str, model_path: str, device: str,
+              models_override: list = None):
+    """Run the sweep across models (serial, single-GPU)."""
+    model_list = models_override if models_override else build_model_list(experiment)
+
+    log.info(f"Sweep: {experiment}, {len(model_list)} models, output -> {output_dir}")
+    os.makedirs(output_dir, exist_ok=True)
+
+    for model_name in model_list:
+        try:
+            analyze_single_model(model_name, model_path, output_dir, device)
+        except Exception as exc:
+            log.error(f"Failed on {model_name}: {exc}", exc_info=True)
+
+    aggregate_results(output_dir, model_list)
 
 
 def main():
@@ -643,9 +661,26 @@ def main():
         help="Cache directory for HF model weights",
     )
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--gpu-id", type=int, default=None,
+        help="Pin to a specific GPU (sets CUDA_VISIBLE_DEVICES)",
+    )
+    parser.add_argument(
+        "--models", type=str, default=None,
+        help="Comma-separated model names to process (overrides --experiment list)",
+    )
     args = parser.parse_args()
 
-    run_sweep(args.experiment, args.output_dir, args.model_path, args.device)
+    if args.gpu_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu_id)
+        device = "cuda:0"
+    else:
+        device = args.device
+
+    models_override = args.models.split(",") if args.models else None
+
+    run_sweep(args.experiment, args.output_dir, args.model_path, device,
+              models_override=models_override)
 
 
 if __name__ == "__main__":
